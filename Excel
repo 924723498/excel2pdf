@@ -1,0 +1,89 @@
+//修缮了一下 有空列  导致格式不完整的情况
+protected PdfPTable toParseContent(Sheet sheet) throws BadElementException, MalformedURLException, IOException{
+        int rows = sheet.getPhysicalNumberOfRows();
+
+        List<PdfPCell> cells = new ArrayList<PdfPCell>();
+        float[] widths = null;
+        float mw = 0;
+        // 首先遍历 获取最大宽度
+        for (int i = 0; i < rows; i++) {
+            Row row = sheet.getRow(i);
+            int columns = row.getLastCellNum();
+            float[] cws = new float[columns];
+            for (int j = 0; j < columns; j++) {
+                Cell cell = row.getCell(j);
+                if(cell == null) {
+                    cell = row.createCell(j);
+                }
+                float cw = getPOIColumnWidth(cell);
+                cws[cell.getColumnIndex()] = cw;
+
+
+                CellRangeAddress range = getColspanRowspanByExcel(row.getRowNum(), cell.getColumnIndex());
+
+                int colspan = 1;
+                if (range != null) {
+                    colspan = range.getLastColumn() - range.getFirstColumn() + 1;
+                }
+
+                j += colspan - 1;
+            }
+
+            float rw = 0;
+            for (int j = 0; j < cws.length; j++) {
+                rw += cws[j];
+            }
+            if (rw > mw ||  mw == 0) {
+                widths = cws;
+                mw = rw;
+            }
+        }
+
+        PdfPTable table = new PdfPTable(widths);
+        table.setWidthPercentage(100);
+
+        for (int i = 0; i < rows; i++) {
+            Row row = sheet.getRow(i);
+            for (int j = 0; j < widths.length; j++) {
+                Cell cell = row.getCell(j);
+                if(cell == null) {
+                    cell = row.createCell(j);
+                }
+                float cw = getPOIColumnWidth(cell);
+                cell.setCellType(Cell.CELL_TYPE_STRING);
+                CellRangeAddress range = getColspanRowspanByExcel(row.getRowNum(), cell.getColumnIndex());
+
+                int rowspan = 1;
+                int colspan = 1;
+                if (range != null) {
+                    rowspan = range.getLastRow() - range.getFirstRow() + 1;
+                    colspan = range.getLastColumn() - range.getFirstColumn() + 1;
+                }
+
+                PdfPCell pdfpCell = new PdfPCell();
+                pdfpCell.setBackgroundColor(new BaseColor(POIUtil.getRGB(
+                        cell.getCellStyle().getFillForegroundColorColor())));
+                pdfpCell.setColspan(colspan);
+                pdfpCell.setRowspan(rowspan);
+                pdfpCell.setVerticalAlignment(getVAlignByExcel(cell.getCellStyle().getVerticalAlignment()));
+                pdfpCell.setHorizontalAlignment(getHAlignByExcel(cell.getCellStyle().getAlignment()));
+                pdfpCell.setPhrase(getPhrase(cell));
+
+                if (sheet.getDefaultRowHeightInPoints() != row.getHeightInPoints()) {
+                    pdfpCell.setFixedHeight(this.getPixelHeight(row.getHeightInPoints()));
+                }
+
+                addBorderByExcel(pdfpCell, cell.getCellStyle());
+                addImageByPOICell(pdfpCell , cell , cw);
+
+                cells.add(pdfpCell);
+                j += colspan - 1;
+            }
+
+        }
+
+        for (PdfPCell pdfpCell : cells) {
+            table.addCell(pdfpCell);
+        }
+        return table;
+    }
